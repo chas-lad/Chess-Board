@@ -1,0 +1,1 @@
+OpenGL application for a chess game with 3D graphics.
