@@ -1,115 +1,124 @@
-//
-//  main.cpp
-//  Chess-Board
-//
-//  Created by Chas Ladhar on 19/05/2024.
-//
-
 #include <iostream>
-
-// GLEW
+#include <vector>
+#include "shader.h"
 #include <GL/glew.h>
-
-// GLFW
 #include <GLFW/glfw3.h>
+#include "board.h"
 
 // Window dimensions
-// Use GLint over regular int as GLint is consistent length on any compiler
 const GLint WIDTH = 800, HEIGHT = 600;
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    glViewport(0, 0, width, height);
-}
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
-void processInput(GLFWwindow *window)
-{
-    // Check if the user has pressed the escape key
-    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-}
 
 int main(int argc, const char * argv[]) {
-    
-    // Init GLFW
-    glfwInit();
-    
+    // Initialize GLFW
+    if (!glfwInit()) {
+        std::cout << "Failed to initialize GLFW" << std::endl;
+        return -1;
+    }
+
     // GLFW Properties
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    
-    // Required for MacOS otherwise it will crash
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-    
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Required for MacOS
+
     // Set window to be resizable
     glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
-    
-    
-    // Create a GLFWwindow object that we can use for GLFW's functions
-    GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, "Chess-Board", nullptr, nullptr);
-    
-    int screenWidth, screenHeight;
-    
-    glfwGetFramebufferSize( window, &screenWidth, &screenHeight );
-    
-    
-    // Check that window was created successfully
-    if (nullptr == window)
-    {
-           std::cout << "Failed to create GLFW window" << std::endl;
-           glfwTerminate();
 
-           return -1;
+    // Create a GLFW window
+    GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, "Chess-Board", nullptr, nullptr);
+    if (!window) {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
     }
-    
     glfwMakeContextCurrent(window);
-    
-    // Define the viewport dimensions
-    // First two parameters set location of lower left corner of window.
-    // Third and fourth parameter set the width and height of the rendering window in pixels.
-    // Note that processed coordinates in OpenGL are between -1 and 1 so we effectively map from the range (-1 to 1) to (0, WIDTH) and (0, HEIGHT).
+
+    // Initialize GLEW
+    GLenum err = glewInit();
+    if (GLEW_OK != err) {
+        std::cout << "Error: " << glewGetErrorString(err) << std::endl;
+        return -1;
+    }
+
+    // Set viewport dimensions
+    int screenWidth, screenHeight;
+    glfwGetFramebufferSize(window, &screenWidth, &screenHeight);
     glViewport(0, 0, screenWidth, screenHeight);
-    
-    // Whenever window changes in size, GLFW calls this function. We register the function here
+
+    // Register framebuffer size callback
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-    
-    // Game loop
-    while (!glfwWindowShouldClose(window))
-    {
-        // Clear previous buffer ready for next buffer
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        
-        // input
-        processInput(window);
-        
-        // Rendering Commands, remember OpenGL is all about transforming 3D coordinates, to 2D pixels that fit on our screen.
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        // Swaps old buffer for new buffer. (We write to the back buffer while front buffer is being shown, then when back buffer is ready, we swap the two buffers)
-        glfwSwapBuffers(window);
-        
-        // Checks if any events are triggered (keyboard, moust input e.g.) and updates window state by calling the corresponding callback methods which we register outside the loop.
-        glfwPollEvents();
-        
-    }
-    
-    // Terminate GLFW, clearing any resources allocated by GLFW.
-    glfwTerminate();
-     
-    return 0;
+    // Build and compile shader program
+    Shader ourShader("vertex.vs", "fragment.fs");
 
+    // Set up vertex data (and buffer(s)) and configure vertex attributes
+    std::vector<float> vertices;
+    createChessboard(vertices);
+
+    unsigned int VBO, VAO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Color attribute
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    
+    // Inside your main function
+    // Define orthographic projection matrix
+    float left = -4.0f;
+    float right = 4.0f;
+    float bottom = -4.0f;
+    float top = 4.0f;
+    float near_plane = -1.0f;
+    float far_plane = 1.0f;
+
+    float projectionMatrix[4][4] = {
+        {2.0f / (right - left), 0.0f, 0.0f, -(right + left) / (right - left)},
+        {0.0f, 2.0f / (top - bottom), 0.0f, -(top + bottom) / (top - bottom)},
+        {0.0f, 0.0f, -2.0f / (far_plane - near_plane), -(far_plane + near_plane) / (far_plane - near_plane)},
+        {0.0f, 0.0f, 0.0f, 1.0f}
+    };
+
+    // Set projection matrix in shader
+    ourShader.use();
+    glUniformMatrix4fv(glGetUniformLocation(ourShader.ID, "projection"), 1, GL_FALSE, &projectionMatrix[0][0]);
+
+
+    while (!glfwWindowShouldClose(window)) {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Render the chessboard
+        ourShader.use();
+        glBindVertexArray(VAO);
+        glDrawArrays(GL_TRIANGLES, 0, vertices.size() / 6);
+
+        // Swap buffers and poll IO events
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    // Clean up
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+
+    // Terminate GLFW
+    glfwTerminate();
+
+    return 0;
 }
 
-
-
+// Framebuffer size callback function
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
+}
